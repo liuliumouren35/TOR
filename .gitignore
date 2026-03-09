@@ -1,0 +1,32 @@
+# 数据集与语料（不纳入版本控制）
+corpus/
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# 环境与密钥
+.env
+.venv/
+venv/
+*.key
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 大文件与临时文件
+*.pdf
+*.zip
+*.tar.gz
+.DS_Store

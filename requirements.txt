@@ -1,0 +1,13 @@
+# 运行 RAG 检索测试 (test_rag.py) 所需依赖
+# 建议在虚拟环境中安装: python -m venv .venv && source .venv/bin/activate
+
+torch>=1.10
+transformers>=4.20
+sentence-transformers>=2.2
+faiss-cpu>=1.7
+# 若有 GPU 可用: pip install faiss-gpu 替代 faiss-cpu
+tqdm
+numpy
+openai>=1.0
+tiktoken
+liquidpy  # template.py 使用

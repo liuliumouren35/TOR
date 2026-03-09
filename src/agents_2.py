@@ -1,15 +1,27 @@
+"""
+多智能体医学诊断模块 (agents_2.py)
+-----------------------------------
+定义四类专科医生智能体：主诉医生、检验医生、影像医生、病理医生。
+每个智能体继承 BaseDoctor，使用 MedRAG 做检索增强，并调用 LLM 生成证据树形式的诊断意见。
+"""
 import datetime
 import json
 import sys
 from openai import OpenAI
 from medrag import MedRAG
 
-MODEL_NAME = "deepseek-chat"  
+# 调用 DeepSeek 使用的模型名
+MODEL_NAME = "deepseek-chat"
 
+# 全局 LLM 客户端（需在运行前配置 api_key）
 client = OpenAI(api_key="", base_url="https://api.deepseek.com")
 
+
 class BaseDoctor:
+    """所有专科医生的基类，封装 MedRAG 检索与通用文本处理逻辑。"""
+
     def __init__(self, llm_name="OpenAI/gpt-3.5-turbo-16k", retriever_name="MedCPT", corpus_name="Textbooks", db_dir="./corpus"):
+        """初始化 MedRAG：检索器、语料库、数据库路径等可由子类覆盖。"""
         self.medrag = MedRAG(
             llm_name=llm_name,
             rag=True,
@@ -20,33 +32,39 @@ class BaseDoctor:
         )
 
     def process_medical_text(self, input_text, k=3):
+        """对输入医学文本做 RAG 检索，返回格式化后的检索片段字符串。"""
         retrieved_snippets, scores = self.medrag.medrag_retrieve(input_text, k=k)
-        
+
         retrieved_info = "\n".join([
             "Document [{:d}] (Title: {:s}) {:s}".format(
                 idx, snippet["title"], snippet["content"]
             ) for idx, snippet in enumerate(retrieved_snippets)
         ])
-        
+
         return {
             'retrieved_info': retrieved_info,
         }
 
-# Chief complaint doctor agent
+
+# ---------- 主诉医生智能体 ----------
 class ChiefComplaintDoctor(BaseDoctor):
+    """主诉医生：根据主诉、现病史、体格检查做问诊与初步鉴别，输出主诉相关证据树。"""
+
     def __init__(self):
         super().__init__(
             llm_name="OpenAI/gpt-3.5-turbo-16k",
-            retriever_name="MedCPT", 
+            retriever_name="MedCPT",
             corpus_name="StatPearls",
             db_dir="./corpus"
         )
-    
+
     def examine_patient(self, patient_info):
+        """根据患者信息（主诉、现病史、体格检查等）进行问诊分析，返回证据树及检索信息。"""
         print("The chief physician is currently handling the matter...")
-        
+
+        # 主诉 + 现病史 作为检索与推理的输入
         input_text = patient_info["Chief-Complaints"] + " " + patient_info["Present-Illness"]
-        
+
         result = self.process_medical_text(input_text)
 
         template = """
@@ -104,30 +122,36 @@ Please ensure that the output strictly follows the above format and only include
             ],
             stream=False
         )
-        
+
         return {
             'prompt': system_message,
             'response': response.choices[0].message.content,
             'retrieved_info': result['retrieved_info']
         }
 
+
 def chief_complaint_agent(patient_info):
+    """便捷入口：创建主诉医生并执行问诊，返回证据树等结果。"""
     doctor = ChiefComplaintDoctor()
     return doctor.examine_patient(patient_info)
 
-# Laboratory doctor agent
+
+# ---------- 检验医生智能体 ----------
 class LabDoctor(BaseDoctor):
+    """检验医生：根据实验室检查结果分析异常指标，输出检验相关证据树。"""
+
     def __init__(self):
         super().__init__(
             llm_name="OpenAI/gpt-3.5-turbo-16k",
-            retriever_name="MedCPT",  
-            corpus_name="Textbooks", 
+            retriever_name="MedCPT",
+            corpus_name="Textbooks",
             db_dir="./corpus"
         )
-    
+
     def analyze_results(self, lab_results):
+        """分析检验结果文本，返回证据树及检索信息。"""
         print("The laboratory doctor is currently handling it...")
-        
+
         result = self.process_medical_text(lab_results)
 
         template = """
@@ -182,24 +206,29 @@ Please ensure that the output strictly follows the above format and only include
             'retrieved_info': result['retrieved_info']
         }
 
+
 def lab_agent(lab_results):
+    """便捷入口：创建检验医生并分析检验结果。"""
     doctor = LabDoctor()
     return doctor.analyze_results(lab_results)
 
-# Image Agent
+
+# ---------- 影像医生智能体 ----------
 class ImagingDoctor(BaseDoctor):
+    """影像医生：根据影像检查描述（X 光/CT/MRI/超声等）分析异常征象，输出影像证据树。"""
+
     def __init__(self):
         super().__init__(
             llm_name="OpenAI/gpt-3.5-turbo-16k",
-            retriever_name="MedCPT",  
-            corpus_name="Textbooks", 
+            retriever_name="MedCPT",
+            corpus_name="Textbooks",
             db_dir="./corpus"
         )
-    
-    
+
     def analyze_images(self, imaging_results):
+        """分析影像检查结果文本，返回证据树及检索信息。"""
         print("The imaging doctor is currently processing it...")
-        
+
         result = self.process_medical_text(imaging_results)
 
         template = """
@@ -253,23 +282,27 @@ Please ensure that the output strictly follows the above format and only include
         }
 
 def imaging_agent(imaging_results):
+    """便捷入口：创建影像医生并分析影像结果。"""
     doctor = ImagingDoctor()
     return doctor.analyze_images(imaging_results)
 
 
-# Pathological Agent
+# ---------- 病理医生智能体 ----------
 class PathologyDoctor(BaseDoctor):
+    """病理医生：根据病理检查结果分析异常发现，输出病理证据树。"""
+
     def __init__(self):
         super().__init__(
             llm_name="OpenAI/gpt-3.5-turbo-16k",
-            retriever_name="MedCPT",  
-            corpus_name="Textbooks", 
+            retriever_name="MedCPT",
+            corpus_name="Textbooks",
             db_dir="./corpus"
         )
-    
+
     def analyze_pathology(self, pathology_results):
+        """分析病理检查结果文本，返回证据树及检索信息。"""
         print("The pathologist is currently handling it...")
-        
+
         result = self.process_medical_text(pathology_results)
 
         template = """
@@ -325,13 +358,16 @@ Please ensure that the output strictly follows the above format and only include
         }
 
 def pathology_agent(pathology_results):
+    """便捷入口：创建病理医生并分析病理结果。"""
     doctor = PathologyDoctor()
     return doctor.analyze_pathology(pathology_results)
 
+
 def load_json_data(file_path):
+    """从 JSON 病例文件加载并标准化为统一结构：患者信息、各模态检查结果、选项与标签。"""
     with open(file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    
+
     return {
         "patient_info": {
             "Age": data.get("Age", ""),
@@ -342,10 +378,10 @@ def load_json_data(file_path):
         },
         "lab_results": data.get("Laboratory-Examination", ""),
         "imaging_results": "\n".join([
-            data.get("X光影像检查", ""),
-            data.get("CT影像检查", ""),
-            data.get("磁共振影像检查", ""),
-            data.get("超声影像检查", "")
+            data.get("X光影像检查") or "",
+            data.get("CT影像检查") or "",
+            data.get("磁共振影像检查") or "",
+            data.get("超声影像检查") or ""
         ]).strip(),
         "pathology_results": data.get("病理检查", ""),
         "options": data.get("options", ""),
