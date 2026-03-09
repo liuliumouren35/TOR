@@ -45,7 +45,7 @@ python test_rag.py --question "What are the symptoms of hypertension?" --k 5
 先设置 DeepSeek API Key，再带 `--llm` 运行：
 
 ```bash
-export DEEPSEEK_API_KEY="sk-f05f3d4564f44a7fb932264cf63d6b6f"
+export DEEPSEEK_API_KEY=""
 python test_rag.py --llm
 ```
 
